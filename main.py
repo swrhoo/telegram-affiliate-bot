@@ -36,10 +36,8 @@ threading.Thread(target=start_http_server, daemon=True).start()
 client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
 bot    = Bot(token=BOT_TOKEN)
 
-# Connetti user-client senza prompt interattivo
-client.connect()
-if not client.is_user_authorized():
-    raise Exception("Sessione non autorizzata. Rigenera la SESSION_STRING.")
+# Avvia il client utente in modo non interattivo
+client.start()  # usa la SESSION_STRING per autenticarsi
 
 @client.on(events.NewMessage(chats=SOURCE))
 async def handler(ev):
