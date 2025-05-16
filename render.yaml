@@ -1,0 +1,14 @@
+services:
+  - type: worker
+    name: tg-affiliate-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: TELEGRAM_API_ID
+        value: "24645709"
+      - key: TELEGRAM_API_HASH
+        value: "13b6e8e52ce4c314decc86fdb38ae4d3"
+      - key: TELEGRAM_BOT_TOKEN
+        value: "7801684040:AAGmEmA0Rhrwa79D5zsFDTQe7-fMi2VQypc"
