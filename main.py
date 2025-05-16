@@ -1,41 +1,50 @@
-import os
-import re
-import requests
+import os, re, requests, threading
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
+from telegram import Bot
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Leggi le variabili d’ambiente
+# Variabili d’ambiente
 API_ID    = int(os.getenv('TELEGRAM_API_ID'))
 API_HASH  = os.getenv('TELEGRAM_API_HASH')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-SOURCE    = '@DigitalOfferte'
-DEST      = '@scontiweb1'
-TAG       = 'salchi-21'
+SESSION   = os.getenv('SESSION_STRING')
 
-# Inizializza il client direttamente come bot (senza prompt interattivo)
-client = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+SOURCE = '@DigitalOfferte'
+DEST   = '@scontiweb1'
+TAG    = 'salchi-21'
+PORT   = int(os.getenv('PORT', '8000'))  # Porta per l’HTTP server
 
-# Trova ASIN e costruisci link affiliazione
-def extract_asin(url):
-    m = re.search(r'/dp/([A-Z0-9]{10})', url)
-    if m:
-        return m.group(1)
-    # se è uno short-link, espandi e riprova
-    r = requests.get(url, allow_redirects=True)
-    return extract_asin(r.url)
+# Dummy HTTP server per soddisfare il controllo porte di Render
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
 
-def to_affiliate(url):
-    asin = extract_asin(url)
-    return f'https://www.amazon.it/dp/{asin}/?tag={TAG}' if asin else url
+def start_http_server():
+    server = HTTPServer(('0.0.0.0', PORT), Handler)
+    server.serve_forever()
 
-@client.on(events.NewMessage(chats=SOURCE))
+# Avvia il server in background
+threading.Thread(target=start_http_server, daemon=True).start()
+
+# Setup Telegram user-client e bot-client
+user_client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
+bot         = Bot(token=BOT_TOKEN)
+
+@user_client.on(events.NewMessage(chats=SOURCE))
 async def handler(ev):
     text = ev.raw_text
-    # sostituisci ogni link rilevante
     for link in re.findall(r'https?://\S+', text):
         if 'amzn.to' in link or '/dp/' in link:
-            text = text.replace(link, to_affiliate(link))
-    # inoltra il testo modificato
-    await client.send_message(DEST, text)
+            dest = requests.get(link, allow_redirects=True).url
+            asin = re.search(r'/dp/([A-Z0-9]{10})', dest).group(1)
+            new_url = f'https://www.amazon.it/dp/{asin}/?tag={TAG}'
+            text = text.replace(link, new_url)
+    bot.send_message(chat_id=DEST, text=text)
 
-# Avvia il bot
-client.run_until_disconnected()
+if __name__ == '__main__':
+    print(f"✅ Bot avviato e HTTP server in ascolto sulla porta {PORT}")
+    user_client.start()
+    user_client.run_until_disconnected()
