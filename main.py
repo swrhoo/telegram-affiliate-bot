@@ -32,10 +32,15 @@ def start_http_server():
 threading.Thread(target=start_http_server, daemon=True).start()
 
 # Setup client utente (legge) e bot-client (invia)
-user_client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
-bot         = Bot(token=BOT_TOKEN)
+client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
+bot    = Bot(token=BOT_TOKEN)
 
-@user_client.on(events.NewMessage(chats=SOURCE))
+# Connetti user-client senza prompt interattivo
+client.connect()
+if not client.is_user_authorized():
+    raise Exception("Sessione non autorizzata. Rigenera la SESSION_STRING.")
+
+@client.on(events.NewMessage(chats=SOURCE))
 async def handler(ev):
     text = ev.raw_text
     for link in re.findall(r'https?://\S+', text):
@@ -50,5 +55,4 @@ async def handler(ev):
 
 if __name__ == '__main__':
     print(f"✅ Bot avviato; HTTP server in ascolto sulla porta {PORT}")
-    user_client.start()
-    user_client.run_until_disconnected()
+    client.run_until_disconnected()
